@@ -23,7 +23,9 @@ The backend for the sports data analysis app.
   "shooting coordinate": "x,y"   // for visualization
 }
 ```
-
+## question list
+    how can we store data in clients laplop when he is using it? stored in ram? is that possible?
+    
 ## Web service
 - Web service (make sure the app can be accessed from the web)
 
