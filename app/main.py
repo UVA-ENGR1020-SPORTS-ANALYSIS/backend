@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(
     title="Sports Analysis App API",
@@ -10,14 +10,13 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://frontend-bc7.pages.dev/" # production frontend
+        "https://frontend-bc7.pages.dev/", # production frontend
         "http://localhost:5173/" # Vite local server
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 @app.get("/")
 async def root():
