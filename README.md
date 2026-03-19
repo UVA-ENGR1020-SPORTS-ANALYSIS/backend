@@ -10,6 +10,17 @@ The backend for the sports data analysis app.
 2. `src/logic/` - Analysis and math code.
 3. `main.py` - Web server entry point.
 
+## Setup
+1. **Create a virtual environment:**
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate  # On Windows use `.venv\Scripts\activate`
+   ```
+2. **Install requirements:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
 
 ## sample return format:
 
