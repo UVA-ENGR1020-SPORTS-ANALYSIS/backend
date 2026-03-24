@@ -1,6 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routes.connect import router as connect_router
+from app.routes.game import router as game_router
+from app.routes.players import router as players_router
+from app.routes.sessions import router as sessions_router
 
 app = FastAPI(
     title="Sports Analysis App API",
@@ -24,6 +27,9 @@ async def root():
     return {"message": "Sports Analysis App API is running..."}
 
 app.include_router(connect_router)
+app.include_router(game_router)
+app.include_router(players_router)
+app.include_router(sessions_router)
 
 if __name__ == "__main__":
     import uvicorn
