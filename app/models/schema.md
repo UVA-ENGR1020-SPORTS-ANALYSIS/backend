@@ -16,7 +16,7 @@ To save or look up a player, we use this naming rule `player:ID_NUMBER`.
 *What to save for them (Table: players):*
 * Player ID (Primary Key)
 * Name
-* Jersey Number (Crucial for fast live game logging)
+* Player Index (Auto-generated numeric index, non-customizable)
 * Team ID (Foreign Key linking to Team Info)
 * Total Points
 * Total Assists
