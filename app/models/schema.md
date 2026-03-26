@@ -1,53 +1,27 @@
-# Data Rules (Supabase Schema Design)
+# Database Schema: Core Shot Tracker
 
-## 1. Team Info
-To organize players into squads, we use this naming rule `team:ID_NUMBER`.
+## 1. Table: `sessions`
+| Column | Data Type | Description |
+| :--- | :--- | :--- |
+| **session_id** | uuid (PK) | Primary key for the session. |
+| **session_code** | int4 | Integer session code (Must be exactly 6 digits). |
 
-*What to save for them (Table: teams):*
-* Team ID (Primary Key)
-* Team Name
-* Total Wins
-* Total Losses
-* Roster (Players associated with this team)
+## 2. Table: `teams`
+| Column | Data Type | Description |
+| :--- | :--- | :--- |
+| **team_id** | uuid (PK) | Primary key for the team. |
+| **current_session** | uuid (FK) | Foreign key linking to `sessions.session_id`. |
 
-## 2. Player Info
-To save or look up a player, we use this naming rule `player:ID_NUMBER`.
+## 3. Table: `player`
+| Column | Data Type | Description |
+| :--- | :--- | :--- |
+| **player_id** | uuid (PK) | Primary key for the player. |
+| **player_team_id** | uuid (FK) | Foreign key linking to `teams.team_id`. |
 
-*What to save for them (Table: players):*
-* Player ID (Primary Key)
-* Name
-* Player Index (Auto-generated numeric index, non-customizable)
-* Team ID (Foreign Key linking to Team Info)
-* Total Points
-* Total Assists
-* Total Rebounds (For deep analysis)
-* Total Steals (For deep analysis)
-
-## 3. The Live Game (Game Sessions)
-To update the current score and manage a match, we use this naming rule `game:session_ID`.
-
-*What to save here (Table: games):*
-* Game Session ID (Primary Key)
-* Home Team ID
-* Away Team ID
-* Home Score
-* Away Score
-* Current Possession (Which team currently has the ball)
-* Status (e.g., "waiting", "in_progress", "completed")
-* Created At / Ended At (Timestamps)
-
-## 4. Shot History (Play-by-Play Log)
-To keep a running list of every shot taken for later fetching and drawing shot charts, we use this naming rule `game:shot_log`.
-
-*What to save here (Table: shot_log):*
-* Shot ID (Primary Key, unique for every single shot)
-* Game Session ID (Which game this happened in)
-* Player ID (Who shot it)
-* Team ID (Which team took the shot)
-* Did it go in? (True/False)
-* Score Type (1, 2, or 3 points)
-* Shot Type (Optional: Jump Shot, Layup, Free Throw, etc.)
-* Scored Area (e.g., "area#1")
-* X Coordinate
-* Y Coordinate
-* Timestamp / Game Clock (Exactly when the shot was taken)
+## 4. Table: `shots`
+| Column | Data Type | Description |
+| :--- | :--- | :--- |
+| **shot_id** | uuid (PK) | Primary key for the shot. |
+| **shot_player_id** | uuid (FK) | Foreign key linking to `player.player_id`. |
+| **shot_made** | boolean | True/False for make or miss. |
+| **zone** | int4 | Integer representing the shot zone (Must be 1 through 6). |
