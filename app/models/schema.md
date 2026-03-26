@@ -5,18 +5,21 @@
 | :--- | :--- | :--- |
 | **session_id** | uuid (PK) | Primary key for the session. |
 | **session_code** | int4 | Integer session code (Must be exactly 6 digits). |
+| **status** | if the game is ongoing, closed, etc. |
 
 ## 2. Table: `teams`
 | Column | Data Type | Description |
 | :--- | :--- | :--- |
 | **team_id** | uuid (PK) | Primary key for the team. |
 | **current_session** | uuid (FK) | Foreign key linking to `sessions.session_id`. |
+| **total_points** |
 
 ## 3. Table: `player`
 | Column | Data Type | Description |
 | :--- | :--- | :--- |
 | **player_id** | uuid (PK) | Primary key for the player. |
 | **player_team_id** | uuid (FK) | Foreign key linking to `teams.team_id`. |
+| **player_name** |
 
 ## 4. Table: `shots`
 | Column | Data Type | Description |
