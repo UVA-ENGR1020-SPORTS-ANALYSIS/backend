@@ -38,7 +38,7 @@ The backend for the sports data analysis app.
     how can we store data in clients laplop when he is using it? stored in ram? is that possible?
 
 ## Next step to do
-   Implement the actual database logic (Redis/SQL) within each route.
+   Implement the actual database within each route.
    Connect the frontend to these new API endpoints.
 
 ## Web service
