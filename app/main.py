@@ -35,4 +35,4 @@ if __name__ == "__main__":
     import uvicorn
     from app.config import PORT
 
-    uvicorn.run("app.main:app", host="[IP_ADDRESS]", port=PORT, reload=True)
+    uvicorn.run("app.main:app", host="0.0.0.0", port=PORT)
