@@ -5,7 +5,6 @@ from supabase import create_client, Client
 
 router = APIRouter(prefix="/api/connect", tags=["connect"])
 
-# Define Supabase connection logic (lazy-loaded so it doesn't crash if env vars aren't set yet)
 def get_supabase() -> Client:
     url = os.getenv("SUPABASE_URL", "")
     key = os.getenv("SUPABASE_KEY", "")
@@ -13,95 +12,74 @@ def get_supabase() -> Client:
         raise HTTPException(status_code=500, detail="Supabase env variables missing.")
     return create_client(url, key)
 
-class JoinSessionRequest(BaseModel):
-    session_code: str
-    player_name: str
-    # Added team_id: according to the new schema, a Player belongs to a Team, 
-    # so the frontend must specify which team the player is joining in this session.
-    team_id: str 
+class JoinTeamRequest(BaseModel):
+    session_code: int             # The 6-digit PIN to join the game
+    player_names: list[str]       # An array of names like ["Alice", "Bob", "Charlie"]
+    player_number: int            # The number of players in the team
 
 @router.get("/{session_code}")
-async def check_session(session_code: str):
+async def check_session(session_code: int):
     """
-    Checks if a session is valid and grab the game information (including team IDs)
-    so the frontend knows what teams are available to join.
+    Checks if a room (session_code) exists before the frontend allows typing player names.
     """
     supabase = get_supabase()
     
-    # Fetch session from the 'games' table
-    response = supabase.table("games").select("*").eq("session_id", session_code).execute()
+    session_res = supabase.table("sessions").select("*").eq("session_code", session_code).execute()
     
-    if not response.data:
-        raise HTTPException(status_code=404, detail="Session not found in games table")
+    if not session_res.data:
+        raise HTTPException(status_code=404, detail="Session not found")
         
-    game = response.data[0]
+    session = session_res.data[0]
     
-    # Optional: check if the game is actually waiting for players
-    # if game["status"] != "waiting":
-    #     raise HTTPException(status_code=403, detail="Game is already in progress or finished")
+    # Optional: fetch how many teams are already in this room
+    teams_res = supabase.table("teams").select("team_id").eq("current_session", session["session_id"]).execute()
     
     return {
         "status": "valid",
         "session_code": session_code,
-        "message": f"Session {session_code} is active and ready to join",
-        "game_info": game  # returns home_team_id and away_team_id for the frontend to use
+        "session_uuid": session["session_id"],
+        "message": "Room is ready. Please enter your team's players.",
+        "current_teams_count": len(teams_res.data) # Tells frontend how many computers are already joined
     }
 
 @router.post("")
-async def join_session(request: JoinSessionRequest):
+async def join_session_as_team(request: JoinTeamRequest):
     """
-    Validates the player's name and inserts them into the DB under the selected team.
+    Registers an entire team from one computer Interface.
+    Creates a Team record, and bulk creates the Player records.
     """
     supabase = get_supabase()
     
-    # Step 1: Ensure the game exists and the team belongs to this game
-    game_res = supabase.table("games").select("*").eq("session_id", request.session_code).execute()
-    if not game_res.data:
+    # 1. Verify Session
+    session_res = supabase.table("sessions").select("session_id").eq("session_code", request.session_code).execute()
+    if not session_res.data:
         raise HTTPException(status_code=404, detail="Session not found.")
-        
-    game = game_res.data[0]
+    session_uuid = session_res.data[0]["session_id"]
     
-    # Validate the team_id is actually part of this game
-    if request.team_id not in [game["home_team_id"], game["away_team_id"]]:
-        raise HTTPException(
-            status_code=400, 
-            detail="The chosen team does not belong to this game session."
-        )
+    # 2. Add players constraint (a team must have at least one player)
+    if len(request.player_names) == 0:
+        raise HTTPException(status_code=400, detail="A team must have at least one player.")
 
-    # Step 2: Query the chosen team's roster to check for player name duplicates
-    players_res = supabase.table("players").select("name").eq("team_id", request.team_id).execute()
-    existing_names = [p["name"] for p in players_res.data]
+    # 3. Create a Team in the database linked to this Session
+    team_insert = supabase.table("teams").insert({"current_session": session_uuid}).execute()
+    if not team_insert.data:
+        raise HTTPException(status_code=500, detail="Failed to create team.")
+    new_team_id = team_insert.data[0]["team_id"]
     
-    if request.player_name in existing_names:
-        raise HTTPException(
-            status_code=400,
-            detail=f"The name '{request.player_name}' is already taken in this team. Please choose another one."
-        )
+    # 4. Prepare data for all players and bulk insert them into `player` table
+    players_data = [
+        {"player_team_id": new_team_id, "player_name": name}
+        for name in request.player_names
+    ]
+    
+    players_insert = supabase.table("player").insert(players_data).execute()
+    if not players_insert.data:
+        raise HTTPException(status_code=500, detail="Failed to insert players into the team.")
         
-    # Step 3: Insert the new player into the 'players' table
-    new_player_data = {
-        "team_id": request.team_id,
-        "name": request.player_name,
-        # Based on your image, jersey_number is still in the schema as int4. 
-        # You can pass 0 if you are auto-generating indices instead.
-        "jersey_number": 0, 
-        "total_points": 0,
-        "total_assists": 0,
-        "total_rebounds": 0,
-        "total_steals": 0
-    }
-    
-    insert_res = supabase.table("players").insert(new_player_data).execute()
-    
-    if not insert_res.data:
-        raise HTTPException(status_code=500, detail="Failed to insert player into Database.")
-        
-    new_player = insert_res.data[0]
-    
-    # Step 4: Return success with the player's unique UUID
+    # 5. Return the bundle to the frontend computer so it can render the Shot Selection interface
     return {
         "status": "success",
-        "message": f"Player {request.player_name} successfully joined!",
-        "player_data": new_player,
-        "player_token": new_player["player_id"] # This is the UUID PK from Supabase
+        "message": f"Team created with {len(players_insert.data)} players.",
+        "team_id": new_team_id,
+        "players": players_insert.data
     }
