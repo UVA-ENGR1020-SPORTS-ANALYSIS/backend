@@ -20,6 +20,10 @@ The backend for the sports data analysis app.
    ```bash
    pip install -r requirements.txt
    ```
+3. **Run the development server:**
+   ```bash
+   uvicorn app.main:app --reload
+   ```
 
 
 ## sample return format:
