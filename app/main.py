@@ -14,8 +14,10 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://frontend-bc7.pages.dev/", # production frontend
-        "http://localhost:5173/" # Vite local server
+        "https://frontend-bc7.pages.dev", # production frontend
+        "https://tabletopbb.app", # new production root domain
+        "https://www.tabletopbb.app", # www alias
+        "http://localhost:5173" # Vite local server
     ],
     allow_credentials=True,
     allow_methods=["*"],
