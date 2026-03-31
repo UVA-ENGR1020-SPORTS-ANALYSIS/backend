@@ -1,16 +1,11 @@
-import os
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from supabase import create_client, Client
+
+from app.supabase_wrapper.sessions import get_session_by_code
+from app.supabase_wrapper.teams import get_teams_count_by_session, create_team
+from app.supabase_wrapper.players import bulk_create_players
 
 router = APIRouter(prefix="/api/connect", tags=["connect"])
-
-def get_supabase() -> Client:
-    url = os.getenv("SUPABASE_URL", "")
-    key = os.getenv("SUPABASE_KEY", "")
-    if not url or not key:
-        raise HTTPException(status_code=500, detail="Supabase env variables missing.")
-    return create_client(url, key)
 
 class JoinTeamRequest(BaseModel):
     session_code: int             # The 6-digit PIN to join the game
@@ -22,24 +17,20 @@ async def check_session(session_code: int):
     """
     Checks if a room (session_code) exists before the frontend allows typing player names.
     """
-    supabase = get_supabase()
+    session = get_session_by_code(session_code)
     
-    session_res = supabase.table("sessions").select("*").eq("session_code", session_code).execute()
-    
-    if not session_res.data:
+    if not session:
         raise HTTPException(status_code=404, detail="Session not found")
         
-    session = session_res.data[0]
-    
     # Optional: fetch how many teams are already in this room
-    teams_res = supabase.table("teams").select("team_id").eq("current_session", session["session_id"]).execute()
+    teams_count = get_teams_count_by_session(session["session_id"])
     
     return {
         "status": "valid",
         "session_code": session_code,
         "session_uuid": session["session_id"],
         "message": "Room is ready. Please enter your team's players.",
-        "current_teams_count": len(teams_res.data) # Tells frontend how many computers are already joined
+        "current_teams_count": teams_count # Tells frontend how many computers are already joined
     }
 
 @router.post("")
@@ -48,38 +39,30 @@ async def join_session_as_team(request: JoinTeamRequest):
     Registers an entire team from one computer Interface.
     Creates a Team record, and bulk creates the Player records.
     """
-    supabase = get_supabase()
-    
     # 1. Verify Session
-    session_res = supabase.table("sessions").select("session_id").eq("session_code", request.session_code).execute()
-    if not session_res.data:
+    session = get_session_by_code(request.session_code)
+    if not session:
         raise HTTPException(status_code=404, detail="Session not found.")
-    session_uuid = session_res.data[0]["session_id"]
+    session_uuid = session["session_id"]
     
     # 2. Add players constraint (a team must have at least one player)
     if len(request.player_names) == 0:
         raise HTTPException(status_code=400, detail="A team must have at least one player.")
 
     # 3. Create a Team in the database linked to this Session
-    team_insert = supabase.table("teams").insert({"current_session": session_uuid}).execute()
-    if not team_insert.data:
+    new_team_id = create_team(session_uuid)
+    if not new_team_id:
         raise HTTPException(status_code=500, detail="Failed to create team.")
-    new_team_id = team_insert.data[0]["team_id"]
     
     # 4. Prepare data for all players and bulk insert them into `player` table
-    players_data = [
-        {"player_team_id": new_team_id, "player_name": name}
-        for name in request.player_names
-    ]
-    
-    players_insert = supabase.table("player").insert(players_data).execute()
-    if not players_insert.data:
+    inserted_players = bulk_create_players(new_team_id, request.player_names)
+    if not inserted_players:
         raise HTTPException(status_code=500, detail="Failed to insert players into the team.")
         
     # 5. Return the bundle to the frontend computer so it can render the Shot Selection interface
     return {
         "status": "success",
-        "message": f"Team created with {len(players_insert.data)} players.",
+        "message": f"Team created with {len(inserted_players)} players.",
         "team_id": new_team_id,
-        "players": players_insert.data
+        "players": inserted_players
     }
