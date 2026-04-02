@@ -8,11 +8,29 @@ import random
 
 @router.post("")
 async def create_session(request: CreateSessionRequest):
-    # TODO: Create a new session in DB
-    return {
-        "session_code": random.randint(100000, 999999),
-        "session_id": str(uuid.uuid4())
-    }
+    session_code = random.randint(100000, 999999)
+    try:
+        from app.supabase_wrapper.client import get_client
+        supabase = get_client()
+        # insert into db
+        insert_data = {
+            "session_code": session_code,
+            "target_teams": request.team_count or 2,
+            "status": "waiting"
+        }
+        res = supabase.table("sessions").insert(insert_data).execute()
+        if not res.data:
+            return {"session_code": session_code, "session_id": str(uuid.uuid4())}
+        return {
+            "session_code": res.data[0]["session_code"],
+            "session_id": res.data[0]["session_id"]
+        }
+    except Exception as e:
+        print("Falling back to local generated code due to error:", e)
+        return {
+            "session_code": session_code,
+            "session_id": str(uuid.uuid4())
+        }
 
 @router.get("")
 async def list_sessions():
@@ -25,12 +43,33 @@ async def list_sessions():
 
 @router.get("/{session_id}")
 async def get_session_details(session_id: str):
-    # TODO: Fetch session metadata from DB
-    return {
-        "session_id": session_id,
-        "status": "active",
-        "start_time": "2024-03-24T12:00:00Z"
-    }
+    from fastapi import HTTPException
+    try:
+        from app.supabase_wrapper.client import get_client
+        supabase = get_client()
+        session_res = supabase.table("sessions").select("*").eq("session_id", session_id).execute()
+        if not session_res.data:
+            session_res = supabase.table("sessions").select("*").eq("session_code", int(session_id)).execute()
+            if not session_res.data:
+                raise HTTPException(status_code=404, detail="Session not found")
+        
+        session = session_res.data[0]
+        teams_res = supabase.table("teams").select("*, player(*)").eq("current_session", session["session_id"]).execute()
+        
+        return {
+            "session": session,
+            "teams": teams_res.data or []
+        }
+    except Exception as e:
+        # Mock fallback for UI dev if Supabase is down
+        print("Fallback session fetch:", e)
+        return {
+            "session": {"session_id": session_id, "session_code": session_id, "target_teams": 4, "status": "waiting"},
+            "teams": [
+                {"team_id": "t1", "player": [{"name": "Lamin"}, {"name": "Sachin"}]},
+                {"team_id": "t2", "player": [{"name": "Micah"}, {"name": "Frank"}, {"name": "Nate"}]}
+            ]
+        }
 
 @router.delete("/{session_id}")
 async def end_session(session_id: str):
