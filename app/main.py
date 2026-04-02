@@ -4,6 +4,9 @@ from app.routes.connect import router as connect_router
 from app.routes.game import router as game_router
 from app.routes.players import router as players_router
 from app.routes.sessions import router as sessions_router
+from dotenv import load_dotenv
+load_dotenv()
+
 
 app = FastAPI(
     title="Sports Analysis App API",
