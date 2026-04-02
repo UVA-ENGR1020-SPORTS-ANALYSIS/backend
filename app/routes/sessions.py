@@ -2,14 +2,16 @@ from fastapi import APIRouter
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
+from app.models.schemas import CreateSessionRequest
+import uuid
+import random
+
 @router.post("")
-async def create_session(game_type: str, teams: list[str]):
+async def create_session(request: CreateSessionRequest):
     # TODO: Create a new session in DB
     return {
-        "status": "created",
-        "session_id": "session_123",
-        "game_type": game_type,
-        "teams": teams
+        "session_code": random.randint(100000, 999999),
+        "session_id": str(uuid.uuid4())
     }
 
 @router.get("")
