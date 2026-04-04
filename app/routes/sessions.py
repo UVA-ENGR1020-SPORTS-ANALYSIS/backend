@@ -8,10 +8,19 @@ import random
 
 @router.post("")
 async def create_session(request: CreateSessionRequest):
+    # Initial code generation for fallback
     session_code = random.randint(100000, 999999)
     try:
         from app.supabase_wrapper.client import get_client
         supabase = get_client()
+
+        # Ensure uniqueness of the generated code
+        while True:
+            existing = supabase.table("sessions").select("session_code").eq("session_code", session_code).execute()
+            if not existing.data:
+                break
+            session_code = random.randint(100000, 999999)
+
         # insert into db
         insert_data = {
             "session_code": session_code,
