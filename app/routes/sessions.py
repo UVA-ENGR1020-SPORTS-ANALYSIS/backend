@@ -24,7 +24,7 @@ async def create_session(request: CreateSessionRequest):
         # insert into db
         insert_data = {
             "session_code": session_code,
-            "target_teams": request.team_count or 2,
+            "target_team": request.team_count or 2,
             "status": "waiting"
         }
         res = supabase.table("sessions").insert(insert_data).execute()
@@ -73,7 +73,7 @@ async def get_session_details(session_id: str):
         # Mock fallback for UI dev if Supabase is down
         print("Fallback session fetch:", e)
         return {
-            "session": {"session_id": session_id, "session_code": session_id, "target_teams": 4, "status": "waiting"},
+            "session": {"session_id": session_id, "session_code": session_id, "target_team": 4, "status": "waiting"},
             "teams": [
                 {"team_id": "t1", "player": [{"name": "Lamin"}, {"name": "Sachin"}]},
                 {"team_id": "t2", "player": [{"name": "Micah"}, {"name": "Frank"}, {"name": "Nate"}]}

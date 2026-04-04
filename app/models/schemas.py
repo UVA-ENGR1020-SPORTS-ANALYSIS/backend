@@ -38,6 +38,7 @@ class JoinTeamResponse(BaseModel):
 class CreateSessionRequest(BaseModel):
     creator_name: Optional[str] = None
     admin_password: Optional[str] = None
+    team_count: Optional[int] = None
 
 class CreateSessionResponse(BaseModel):
     session_code: int
