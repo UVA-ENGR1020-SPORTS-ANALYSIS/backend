@@ -50,17 +50,17 @@ async def list_sessions():
         ]
     }
 
-@router.get("/{session_id}")
-async def get_session_details(session_id: str):
+@router.get("/{session_code}")
+async def get_session_details(session_code: str):
     from fastapi import HTTPException
     try:
         from app.supabase_wrapper.client import get_client
         supabase = get_client()
-        session_res = supabase.table("sessions").select("*").eq("session_id", session_id).execute()
+        
+        session_res = supabase.table("sessions").select("*").eq("session_code", int(session_code)).execute()
+            
         if not session_res.data:
-            session_res = supabase.table("sessions").select("*").eq("session_code", int(session_id)).execute()
-            if not session_res.data:
-                raise HTTPException(status_code=404, detail="Session not found")
+            raise HTTPException(status_code=404, detail="Session not found")
         
         session = session_res.data[0]
         teams_res = supabase.table("teams").select("*, player(*)").eq("current_session", session["session_id"]).execute()
@@ -69,14 +69,18 @@ async def get_session_details(session_id: str):
             "session": session,
             "teams": teams_res.data or []
         }
+    except HTTPException:
+        raise
     except Exception as e:
         # Mock fallback for UI dev if Supabase is down
-        print("Fallback session fetch:", e)
+        print("Fallback session fetch Exception:", e)
         return {
             "session": {"session_id": session_id, "session_code": session_id, "target_team": 4, "status": "waiting"},
             "teams": [
-                {"team_id": "t1", "player": [{"name": "Lamin"}, {"name": "Sachin"}]},
-                {"team_id": "t2", "player": [{"name": "Micah"}, {"name": "Frank"}, {"name": "Nate"}]}
+                {"team_id": "t1", "player": [{"player_name": "Lamin"}, {"player_name": "Sachin"}, {"player_name": "Frank"}]},
+                {"team_id": "t2", "player": [{"player_name": "Micah"}, {"player_name": "Frank"}, {"player_name": "Nate"}]},
+                {"team_id": "t3", "player": [{"player_name": "Micah"}, {"player_name": "Frank"}, {"player_name": "Nate"}]},
+                {"team_id": "t4", "player": [{"player_name": "Micah"}, {"player_name": "Frank"}, {"player_name": "Nate"}]}
             ]
         }
 
