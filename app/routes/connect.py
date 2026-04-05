@@ -25,6 +25,9 @@ async def check_session(session_code: int):
     # Optional: fetch how many teams are already in this room
     teams_count = get_teams_count_by_session(session["session_id"])
     
+    if teams_count >= session.get("target_team", 2):
+        raise HTTPException(status_code=403, detail="Room is already full.")
+    
     return CheckSessionResponse(
         status="valid",
         session_code=session_code,
@@ -49,6 +52,11 @@ async def join_session_as_team(request: JoinTeamRequest):
         if not session:
             raise HTTPException(status_code=404, detail="Session not found.")
         session_uuid = session["session_id"]
+        
+        # Check if session is full
+        current_teams_count = get_teams_count_by_session(session_uuid)
+        if current_teams_count >= session.get("target_team", 2):
+            raise HTTPException(status_code=403, detail="Room is already full.")
     
     # 2. Add players constraint (a team must have at least one player)
     if len(request.player_names) == 0:
