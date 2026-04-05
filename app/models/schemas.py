@@ -22,6 +22,9 @@ class JoinTeamRequest(BaseModel):
     session_code: Optional[int] = None
     team_count: Optional[int] = Field(None, description="The expected number of players/teams")
 
+class ToggleReadyRequest(BaseModel):
+    is_ready: bool
+
 class JoinTeamResponse(BaseModel):
     """
     Returned by backend after cleanly creating a Team and its Players.

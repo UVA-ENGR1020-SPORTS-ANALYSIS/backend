@@ -19,3 +19,16 @@ def create_team(session_uuid: str) -> str | None:
         return None
         
     return team_insert.data[0]["team_id"]
+
+def set_team_ready(team_id: str, is_ready: bool) -> bool:
+    """
+    Updates the is_ready status of a team.
+    """
+    supabase = get_client()
+    # Force generic execution without checking res.data in case it's suppressed
+    try:
+        supabase.table("teams").update({"is_ready": is_ready}).eq("team_id", team_id).execute()
+        return True
+    except Exception as e:
+        print("Update Ready Error:", e)
+        return False

@@ -1,13 +1,14 @@
 from fastapi import APIRouter, HTTPException
 
 from app.supabase_wrapper.sessions import get_session_by_code
-from app.supabase_wrapper.teams import get_teams_count_by_session, create_team
+from app.supabase_wrapper.teams import get_teams_count_by_session, create_team, set_team_ready
 from app.supabase_wrapper.players import bulk_create_players
 
 from app.models.schemas import (
     CheckSessionResponse,
     JoinTeamRequest,
-    JoinTeamResponse
+    JoinTeamResponse,
+    ToggleReadyRequest
 )
 
 router = APIRouter(prefix="/api/connect", tags=["connect"])
@@ -79,3 +80,13 @@ async def join_session_as_team(request: JoinTeamRequest):
         players=inserted_players,
         message=f"Team created with {len(inserted_players)} players."
     )
+
+@router.post("/{team_id}/ready")
+async def toggle_team_ready(team_id: str, request: ToggleReadyRequest):
+    """
+    Toggles the ready status for a specific team.
+    """
+    success = set_team_ready(team_id, request.is_ready)
+    if not success:
+        raise HTTPException(status_code=404, detail="Team not found or could not update status.")
+    return {"status": "success", "is_ready": request.is_ready}
