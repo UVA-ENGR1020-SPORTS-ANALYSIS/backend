@@ -54,9 +54,20 @@ class CreateSessionResponse(BaseModel):
 class SubmitShotRequest(BaseModel):
     player_id: UUID
     team_id: UUID
+    session_id: UUID
+    round_number: int
     zone: int
     shot_made: bool
 
 class SubmitShotResponse(BaseModel):
     status: str
-    new_total_points: int
+    shot_id: str
+    points_awarded: int
+
+class FinishRoundRequest(BaseModel):
+    team_id: UUID
+    round_number: int
+
+class BanZoneRequest(BaseModel):
+    opponent_team_id: UUID
+    zone: int

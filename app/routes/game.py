@@ -1,39 +1,100 @@
-from fastapi import APIRouter
-from app.models.shot import Shot
+from fastapi import APIRouter, HTTPException
+from typing import Dict, Any
+from app.models.schemas import (
+    SubmitShotRequest, 
+    SubmitShotResponse, 
+    FinishRoundRequest, 
+    BanZoneRequest
+)
+from app.supabase_wrapper.shots import (
+    record_shot_in_db,
+    set_team_round_finished,
+    get_team_stats,
+    ban_opponent_zone
+)
 
 router = APIRouter(prefix="/api/game", tags=["game"])
 
-@router.get("/{session_id}/score")
-async def get_score(session_id: str):
-    # TODO: Fetch current score from DB (e.g. game:live)
+def get_location_value(zone: int) -> int:
+    """Helper to determine points based on zone/location."""
+    # Assuming: 1 = Free Throw (1 pt), 2 & 3 = Inside Arc (2 pts), 4,5,6 = Outside Arc (3 pts)
+    if zone == 1:
+        return 1
+    elif zone in [2, 3]:
+        return 2
+    elif zone in [4, 5, 6]:
+        return 3
+    return 0
+
+@router.post("/shot", response_model=SubmitShotResponse)
+async def submit_shot(shot: SubmitShotRequest):
+    make_value = 1 if shot.shot_made else 0
+    location_value = get_location_value(shot.zone)
+    points = make_value * location_value
+
+    shot_id = record_shot_in_db(
+        player_id=str(shot.player_id),
+        team_id=str(shot.team_id),
+        session_id=str(shot.session_id),
+        round_number=shot.round_number,
+        zone=shot.zone,
+        is_make=shot.shot_made,
+        make_value=make_value,
+        location_value=location_value,
+        points=points
+    )
+
+    if not shot_id:
+        raise HTTPException(status_code=500, detail="Failed to record shot.")
+
+    return SubmitShotResponse(
+        status="success",
+        shot_id=shot_id,
+        points_awarded=points
+    )
+
+@router.post("/finish_round")
+async def finish_round(req: FinishRoundRequest):
+    success = set_team_round_finished(str(req.team_id), req.round_number)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to update round status.")
+    return {"status": "success", "message": f"Round {req.round_number} finished."}
+
+@router.get("/opponent_stats/{session_id}/{my_team_id}")
+async def get_opponent_stats(session_id: str, my_team_id: str):
+    # Fetch all teams in the session
+    from app.supabase_wrapper.client import get_client
+    supabase = get_client()
+    try:
+        res = supabase.table("teams").select("*").eq("current_session", session_id).execute()
+        teams = res.data or []
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to fetch teams.")
+
+    opponent_teams = [t for t in teams if t["team_id"] != my_team_id]
+    if not opponent_teams:
+        return {"status": "no_opponent", "data": None}
+
+    opponent_team = opponent_teams[0]  # Assuming 1v1
+    
+    # Check if opponent is done with round 1
+    if not opponent_team.get("round_1_finished"):
+        return {"status": "waiting", "data": None}
+
+    # Gather their stats
+    stats = get_team_stats(opponent_team["team_id"], round_number=1)
+    
     return {
-        "session_id": session_id,
-        "home_score": 0,
-        "away_score": 0,
-        "possession": "home"
+        "status": "ready",
+        "opponent_team_id": opponent_team["team_id"],
+        "shots_taken": len(stats["shots"]),
+        "points": stats["total_points"],
+        "raw_shots": stats["shots"]
     }
 
-@router.post("/shot")
-async def record_shot(shot: Shot):
-    # TODO: Logic to save shot to game:shot_log and update scores
-    return {
-        "status": "recorded",
-        "shot": shot
-    }
-
-@router.patch("/{session_id}/possession")
-async def update_possession(session_id: str, team_id: str):
-    # TODO: Update possession in DB
-    return {
-        "status": "updated",
-        "session_id": session_id,
-        "possession": team_id
-    }
-
-@router.get("/{session_id}/log")
-async def get_game_log(session_id: str):
-    # TODO: Fetch all shots for this session from DB
-    return {
-        "session_id": session_id,
-        "shots": []
-    }
+@router.post("/ban")
+async def ban_zone(req: BanZoneRequest):
+    success = ban_opponent_zone(str(req.opponent_team_id), req.zone)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to set banned zone.")
+    return {"status": "success", "message": f"Banned zone {req.zone} for opponent."}
