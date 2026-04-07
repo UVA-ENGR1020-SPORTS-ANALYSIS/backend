@@ -1,4 +1,6 @@
-from fastapi import FastAPI
+import os
+
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from app.routes.connect import router as connect_router
 from app.routes.game import router as game_router
@@ -30,6 +32,19 @@ app.add_middleware(
 @app.get("/")
 async def root():
     return {"message": "Sports Analysis App API is running..."}
+
+
+@app.get("/healthz")
+async def healthz():
+    return {"status": "ok"}
+
+
+@app.get("/warmup")
+async def warmup(x_warmup_key: str | None = Header(default=None)):
+    expected_key = os.getenv("WARMUP_KEY")
+    if expected_key and x_warmup_key != expected_key:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return {"status": "warmed"}
 
 app.include_router(connect_router)
 app.include_router(game_router)
