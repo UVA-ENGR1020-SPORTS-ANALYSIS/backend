@@ -60,6 +60,17 @@ async def finish_round(req: FinishRoundRequest):
         raise HTTPException(status_code=500, detail="Failed to update round status.")
     return {"status": "success", "message": f"Round {req.round_number} finished."}
 
+@router.get("/team_stats/{team_id}/{round_number}")
+async def fetch_team_stats(team_id: str, round_number: int):
+    stats = get_team_stats(team_id, round_number)
+    return {
+        "team_id": team_id,
+        "round_number": round_number,
+        "shots_taken": len(stats["shots"]),
+        "points": stats["total_points"],
+        "raw_shots": stats["shots"]
+    }
+
 @router.get("/opponent_stats/{session_id}/{my_team_id}")
 async def get_opponent_stats(session_id: str, my_team_id: str):
     # Fetch all teams in the session
