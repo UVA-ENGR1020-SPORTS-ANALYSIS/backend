@@ -1,8 +1,9 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
 from app.models.schemas import CreateSessionRequest
+from app.supabase_wrapper.client import get_client
 import uuid
 import random
 
@@ -11,15 +12,16 @@ async def create_session(request: CreateSessionRequest):
     # Initial code generation for fallback
     session_code = random.randint(100000, 999999)
     try:
-        from app.supabase_wrapper.client import get_client
         supabase = get_client()
 
-        # Ensure uniqueness of the generated code
-        while True:
+        # Ensure uniqueness — bounded to prevent an infinite loop if the code space is exhausted
+        for _ in range(20):
             existing = supabase.table("sessions").select("session_code").eq("session_code", session_code).execute()
             if not existing.data:
                 break
             session_code = random.randint(100000, 999999)
+        else:
+            raise HTTPException(status_code=503, detail="Could not generate a unique session code. Try again.")
 
         # insert into db
         insert_data = {
@@ -75,7 +77,7 @@ async def get_session_details(session_code: str):
         # Mock fallback for UI dev if Supabase is down
         print("Fallback session fetch Exception:", e)
         return {
-            "session": {"session_id": session_id, "session_code": session_id, "target_team": 4, "status": "waiting"},
+            "session": {"session_id": str(uuid.uuid4()), "session_code": int(session_code) if session_code.isdigit() else 0, "target_team": 4, "status": "waiting"},
             "teams": [
                 {"team_id": "t1", "player": [{"player_name": "Lamin"}, {"player_name": "Sachin"}, {"player_name": "Frank"}]},
                 {"team_id": "t2", "player": [{"player_name": "Micah"}, {"player_name": "Frank"}, {"player_name": "Nate"}]},

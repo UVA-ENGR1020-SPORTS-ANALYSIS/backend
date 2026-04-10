@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from typing import Dict, Any
+from app.supabase_wrapper.client import get_client
 from app.models.schemas import (
     SubmitShotRequest, 
     SubmitShotResponse, 
@@ -74,7 +75,6 @@ async def fetch_team_stats(team_id: str, round_number: int):
 @router.get("/opponent_stats/{session_id}/{my_team_id}")
 async def get_opponent_stats(session_id: str, my_team_id: str):
     # Fetch all teams in the session
-    from app.supabase_wrapper.client import get_client
     supabase = get_client()
     try:
         res = supabase.table("teams").select("*").eq("current_session", session_id).execute()
