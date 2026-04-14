@@ -1,18 +1,26 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from app.models.player import Player
+from app.supabase_wrapper.players import (
+    update_player_in_db,
+    get_player_stats_from_db,
+    get_players_by_team,
+)
 
 router = APIRouter(prefix="/api/players", tags=["players"])
 
+@router.get("/team/{team_id}")
+async def get_team_players(team_id: str):
+    """Returns all players and their stats for a given team."""
+    players = get_players_by_team(team_id)
+    return {"team_id": team_id, "players": players}
+
 @router.get("/{player_id}")
 async def get_player_stats(player_id: str):
-    # TODO: Fetch player stats from DB (naming rule `player:ID_NUMBER`)
-    return {
-        "player_id": player_id,
-        "name": f"Player {player_id}",
-        "team": "TBD",
-        "total_points": 0,
-        "total_assists": 0
-    }
+    """Returns a single player's stats."""
+    stats = get_player_stats_from_db(player_id)
+    if not stats:
+        raise HTTPException(status_code=404, detail="Player not found")
+    return stats
 
 @router.post("")
 async def create_player(player: Player):
@@ -24,9 +32,13 @@ async def create_player(player: Player):
 
 @router.put("/{player_id}")
 async def update_player(player_id: str, player: Player):
-    # TODO: Update player in DB
+    updated = update_player_in_db(player_id, player.player_name)
+
+    if updated is None:
+        raise HTTPException(status_code=404, detail=f"Player {player_id} not found.")
+
     return {
         "status": "updated",
         "player_id": player_id,
-        "player": player
+        "player": updated
     }

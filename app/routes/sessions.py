@@ -15,13 +15,16 @@ async def create_session(request: CreateSessionRequest):
         supabase = get_client()
 
         # Ensure uniqueness — bounded to prevent an infinite loop if the code space is exhausted
-        for _ in range(20):
-            existing = supabase.table("sessions").select("session_code").eq("session_code", session_code).execute()
-            if not existing.data:
-                break
-            session_code = random.randint(100000, 999999)
-        else:
+        candidates = [random.randint(100000, 999999) for _ in range(10)]
+        existing = supabase.table("sessions") \
+            .select("session_code") \
+            .in_("session_code", candidates) \
+            .execute()
+        used = {row["session_code"] for row in existing.data}
+        available = [c for c in candidates if c not in used]
+        if not available:
             raise HTTPException(status_code=503, detail="Could not generate a unique session code. Try again.")
+
 
         # insert into db
         insert_data = {
@@ -45,12 +48,12 @@ async def create_session(request: CreateSessionRequest):
 
 @router.get("")
 async def list_sessions():
-    # TODO: Fetch all sessions from DB
-    return {
-        "sessions": [
-            {"id": "session_123", "status": "active"}
-        ]
-    }
+    try:
+        supabase = get_client()
+        res = supabase.table("sessions").select("*").order("session_code", desc=True).execute()
+        return {"sessions": res.data or []}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch sessions: {e}")
 
 @router.get("/{session_code}")
 async def get_session_details(session_code: str):
@@ -88,8 +91,16 @@ async def get_session_details(session_code: str):
 
 @router.delete("/{session_id}")
 async def end_session(session_id: str):
-    # TODO: Archive or delete session in DB
-    return {
-        "status": "ended",
-        "session_id": session_id
-    }
+    try:
+        supabase = get_client()
+        res = supabase.table("sessions").update({"status": "ended"}).eq("session_id", session_id).execute()
+        if not res.data:
+            raise HTTPException(status_code=404, detail="Session not found.")
+        return {
+            "status": "ended",
+            "session_id": session_id
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to end session: {e}")

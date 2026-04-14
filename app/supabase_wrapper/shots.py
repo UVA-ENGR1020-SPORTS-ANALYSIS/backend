@@ -1,6 +1,4 @@
 from typing import Dict, Any, Optional
-from uuid import UUID
-from fastapi import HTTPException
 from app.supabase_wrapper.client import get_client
 
 def record_shot_in_db(

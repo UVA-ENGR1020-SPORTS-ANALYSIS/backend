@@ -13,6 +13,7 @@ from app.supabase_wrapper.shots import (
     get_team_stats,
     ban_opponent_zone
 )
+from app.supabase_wrapper.players import increment_player_stats
 
 router = APIRouter(prefix="/api/game", tags=["game"])
 
@@ -47,6 +48,9 @@ async def submit_shot(shot: SubmitShotRequest):
 
     if not shot_id:
         raise HTTPException(status_code=500, detail="Failed to record shot.")
+
+    # Update the shooter's cumulative stats
+    increment_player_stats(str(shot.player_id), points, shot.shot_made)
 
     return SubmitShotResponse(
         status="success",
