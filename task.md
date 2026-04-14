@@ -1,9 +1,0 @@
-- [x] Update Supabase schema (Add columns to `shots` and `teams`).
-- [x] Implement Backend `POST /api/game/shot`
-- [x] Implement Backend `POST /api/game/finish_round`
-- [x] Implement Backend `GET /api/game/opponent_stats/{session_id}/{my_team_id}` 
-- [x] Implement Backend `POST /api/game/ban`
-- [x] Create Frontend `GamePage.tsx` Shell
-- [x] Implement HalfCourt UI & Player Selection
-- [x] Connect Frontend mechanics to Backend APIs
-- [x] Build Ban Phase Transition Logic
