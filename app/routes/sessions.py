@@ -36,8 +36,8 @@ async def create_session(request: CreateSessionRequest):
             "session_code": res.data[0]["session_code"],
             "session_id": res.data[0]["session_id"]
         }
-    except Exception as e:
-        print("Falling back to local generated code due to error:", e)
+    except Exception:
+        print("Falling back to local generated code due to an internal error.")
         return {
             "session_code": session_code,
             "session_id": str(uuid.uuid4())
@@ -73,9 +73,9 @@ async def get_session_details(session_code: str):
         }
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         # Mock fallback for UI dev if Supabase is down
-        print("Fallback session fetch Exception:", e)
+        print("Fallback session fetch Exception occurred.")
         return {
             "session": {"session_id": str(uuid.uuid4()), "session_code": int(session_code) if session_code.isdigit() else 0, "target_team": 4, "status": "waiting"},
             "teams": [
