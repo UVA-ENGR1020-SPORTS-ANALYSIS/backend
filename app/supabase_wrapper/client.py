@@ -2,7 +2,8 @@ import os
 from fastapi import HTTPException
 from supabase import create_client, Client
 
-_client: Client | None = None
+from typing import Optional
+_client: Optional[Client] = None
 
 def get_client() -> Client:
     global _client

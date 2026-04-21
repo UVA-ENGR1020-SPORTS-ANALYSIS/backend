@@ -1,6 +1,7 @@
+from typing import Optional
 from app.supabase_wrapper.client import get_client
 
-def bulk_create_players(team_id: str, player_names: list[str]) -> list[dict] | None:
+def bulk_create_players(team_id: str, player_names: list[str]) -> Optional[list[dict]]:
     """
     Bulk inserts players linked to a team_id into the player table.
     Returns the inserted rows.
@@ -19,7 +20,7 @@ def bulk_create_players(team_id: str, player_names: list[str]) -> list[dict] | N
         
     return players_insert.data
 
-def update_player_in_db(player_id: str, player_name: str) -> dict | None:
+def update_player_in_db(player_id: str, player_name: str) -> Optional[dict]:
     """
     Updates a player's name by player_id.
     Returns the updated row, or None if the player was not found.
@@ -70,7 +71,7 @@ def increment_player_stats(player_id: str, points: int, made: bool) -> bool:
         print("Error incrementing player stats:", e)
         return False
 
-def get_player_stats_from_db(player_id: str) -> dict | None:
+def get_player_stats_from_db(player_id: str) -> Optional[dict]:
     """Fetches a single player's full record."""
     supabase = get_client()
     try:

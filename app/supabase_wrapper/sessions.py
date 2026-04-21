@@ -1,6 +1,7 @@
+from typing import Optional
 from app.supabase_wrapper.client import get_client
 
-def get_session_by_code(session_code: int) -> dict | None:
+def get_session_by_code(session_code: int) -> Optional[dict]:
     """
     Queries the sessions table for a given session code.
     Returns the session dictionary if found, otherwise None.

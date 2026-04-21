@@ -1,3 +1,4 @@
+from typing import Optional
 from app.supabase_wrapper.client import get_client
 
 def get_teams_count_by_session(session_id: str) -> int:
@@ -8,7 +9,7 @@ def get_teams_count_by_session(session_id: str) -> int:
     teams_res = supabase.table("teams").select("team_id").eq("current_session", session_id).execute()
     return len(teams_res.data)
 
-def create_team(session_uuid: str) -> str | None:
+def create_team(session_uuid: str) -> Optional[str]:
     """
     Creates a team and returns the new team_id.
     """

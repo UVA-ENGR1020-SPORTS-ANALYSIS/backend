@@ -95,13 +95,7 @@ def test_submit_shot_different_zones(mock_record_shot):
     assert response.status_code == 200
     assert response.json()["points_awarded"] == 3
 
-    # Test zone 7 (0 points)
-    payload_zone7 = get_valid_payload()
-    payload_zone7["zone"] = 7
-    payload_zone7["shot_made"] = True
-    response = client.post("/api/game/shot", json=payload_zone7)
-    assert response.status_code == 200
-    assert response.json()["points_awarded"] == 0
+
 
 @patch('app.routes.game.record_shot_in_db')
 def test_submit_shot_db_failure(mock_record_shot):

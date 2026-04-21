@@ -1,3 +1,4 @@
+from typing import Optional
 import os
 import secrets
 
@@ -41,7 +42,7 @@ async def healthz():
 
 
 @app.get("/warmup")
-async def warmup(x_warmup_key: str | None = Header(default=None)):
+async def warmup(x_warmup_key: Optional[str] = Header(default=None)):
     expected_key = os.getenv("WARMUP_KEY")
     if expected_key and not secrets.compare_digest(expected_key, x_warmup_key or ""):
         raise HTTPException(status_code=401, detail="Unauthorized")
