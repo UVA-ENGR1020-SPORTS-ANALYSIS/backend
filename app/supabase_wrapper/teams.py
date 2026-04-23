@@ -6,8 +6,15 @@ def get_teams_count_by_session(session_id: str) -> int:
     Returns the number of teams for a session.
     """
     supabase = get_client()
-    teams_res = supabase.table("teams").select("team_id").eq("current_session", session_id).execute()
-    return len(teams_res.data)
+    teams_res = (
+        supabase.table("teams")
+        .select("team_id", count="exact")
+        .eq("current_session", session_id)
+        .execute()
+    )
+    if teams_res.count is not None:
+        return teams_res.count
+    return len(teams_res.data or [])
 
 def create_team(session_uuid: str) -> Optional[str]:
     """

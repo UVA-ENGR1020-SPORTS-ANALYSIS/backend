@@ -1,7 +1,8 @@
 from fastapi import APIRouter, HTTPException
-from typing import Dict, Any
+from starlette.concurrency import run_in_threadpool
 from app.supabase_wrapper.client import get_client
 from app.models.schemas import (
+    ShotRecord,
     SubmitShotRequest, 
     SubmitShotResponse, 
     FinishRoundRequest, 
@@ -16,6 +17,11 @@ from app.supabase_wrapper.shots import (
 from app.supabase_wrapper.players import increment_player_stats
 
 router = APIRouter(prefix="/api/game", tags=["game"])
+
+def get_teams_for_session(session_id: str) -> list[dict]:
+    supabase = get_client()
+    res = supabase.table("teams").select("*").eq("current_session", session_id).execute()
+    return res.data or []
 
 def get_location_value(zone: int) -> int:
     """Helper to determine points based on zone/location."""
@@ -34,7 +40,7 @@ async def submit_shot(shot: SubmitShotRequest):
     location_value = get_location_value(shot.zone)
     points = make_value * location_value
 
-    shot_id = record_shot_in_db(
+    shot_record = ShotRecord(
         player_id=str(shot.player_id),
         team_id=str(shot.team_id),
         session_id=str(shot.session_id),
@@ -45,12 +51,13 @@ async def submit_shot(shot: SubmitShotRequest):
         location_value=location_value,
         points=points
     )
+    shot_id = await run_in_threadpool(record_shot_in_db, shot_record)
 
     if not shot_id:
         raise HTTPException(status_code=500, detail="Failed to record shot.")
 
     # Update the shooter's cumulative stats
-    increment_player_stats(str(shot.player_id), points, shot.shot_made)
+    await run_in_threadpool(increment_player_stats, str(shot.player_id), points, shot.shot_made)
 
     return SubmitShotResponse(
         status="success",
@@ -60,18 +67,18 @@ async def submit_shot(shot: SubmitShotRequest):
 
 @router.post("/finish_round")
 async def finish_round(req: FinishRoundRequest):
-    success = set_team_round_finished(str(req.team_id), req.round_number)
+    success = await run_in_threadpool(set_team_round_finished, str(req.team_id), req.round_number)
     if not success:
         raise HTTPException(status_code=500, detail="Failed to update round status.")
     return {"status": "success", "message": f"Round {req.round_number} finished."}
 
 @router.get("/team_stats/{team_id}/{round_number}")
 async def fetch_team_stats(team_id: str, round_number: int):
-    stats = get_team_stats(team_id, round_number)
+    stats = await run_in_threadpool(get_team_stats, team_id, round_number, True)
     return {
         "team_id": team_id,
         "round_number": round_number,
-        "shots_taken": len(stats["shots"]),
+        "shots_taken": stats["shots_taken"],
         "points": stats["total_points"],
         "raw_shots": stats["shots"]
     }
@@ -79,10 +86,8 @@ async def fetch_team_stats(team_id: str, round_number: int):
 @router.get("/opponent_stats/{session_id}/{my_team_id}")
 async def get_opponent_stats(session_id: str, my_team_id: str):
     # Fetch all teams in the session
-    supabase = get_client()
     try:
-        res = supabase.table("teams").select("*").eq("current_session", session_id).execute()
-        teams = res.data or []
+        teams = await run_in_threadpool(get_teams_for_session, session_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to fetch teams.")
 
@@ -97,19 +102,19 @@ async def get_opponent_stats(session_id: str, my_team_id: str):
         return {"status": "waiting", "data": None}
 
     # Gather their stats
-    stats = get_team_stats(opponent_team["team_id"], round_number=1)
+    stats = await run_in_threadpool(get_team_stats, opponent_team["team_id"], 1, True)
     
     return {
         "status": "ready",
         "opponent_team_id": opponent_team["team_id"],
-        "shots_taken": len(stats["shots"]),
+        "shots_taken": stats["shots_taken"],
         "points": stats["total_points"],
         "raw_shots": stats["shots"]
     }
 
 @router.post("/ban")
 async def ban_zone(req: BanZoneRequest):
-    success = ban_opponent_zone(str(req.opponent_team_id), req.zone)
+    success = await run_in_threadpool(ban_opponent_zone, str(req.opponent_team_id), req.zone)
     if not success:
         raise HTTPException(status_code=500, detail="Failed to set banned zone.")
     return {"status": "success", "message": f"Banned zone {req.zone} for opponent."}

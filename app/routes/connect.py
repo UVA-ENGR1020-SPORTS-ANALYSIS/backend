@@ -1,7 +1,8 @@
 from fastapi import APIRouter, HTTPException
+from starlette.concurrency import run_in_threadpool
 
-from app.supabase_wrapper.sessions import get_session_by_code
-from app.supabase_wrapper.teams import get_teams_count_by_session, create_team, set_team_ready
+from app.supabase_wrapper.sessions import get_session_by_code_with_team_count
+from app.supabase_wrapper.teams import create_team, set_team_ready
 from app.supabase_wrapper.players import bulk_create_players
 
 from app.models.schemas import (
@@ -18,13 +19,10 @@ async def check_session(session_code: int):
     """
     Checks if a room (session_code) exists before the frontend allows typing player names.
     """
-    session = get_session_by_code(session_code)
+    session, teams_count = await run_in_threadpool(get_session_by_code_with_team_count, session_code)
     
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-        
-    # Optional: fetch how many teams are already in this room
-    teams_count = get_teams_count_by_session(session["session_id"])
     
     if teams_count >= session.get("target_team", 2):
         raise HTTPException(status_code=403, detail="Room is already full.")
@@ -49,13 +47,14 @@ async def join_session_as_team(request: JoinTeamRequest):
     if not session_uuid:
         if not request.session_code:
             raise HTTPException(status_code=400, detail="Must provide session_id or session_code.")
-        session = get_session_by_code(request.session_code)
+        session, current_teams_count = await run_in_threadpool(
+            get_session_by_code_with_team_count, request.session_code
+        )
         if not session:
             raise HTTPException(status_code=404, detail="Session not found.")
         session_uuid = session["session_id"]
         
         # Check if session is full
-        current_teams_count = get_teams_count_by_session(session_uuid)
         if current_teams_count >= session.get("target_team", 2):
             raise HTTPException(status_code=403, detail="Room is already full.")
     
@@ -64,12 +63,12 @@ async def join_session_as_team(request: JoinTeamRequest):
         raise HTTPException(status_code=400, detail="A team must have at least one player.")
 
     # 3. Create a Team in the database linked to this Session
-    new_team_id = create_team(str(session_uuid))
+    new_team_id = await run_in_threadpool(create_team, str(session_uuid))
     if not new_team_id:
         raise HTTPException(status_code=500, detail="Failed to create team.")
     
     # 4. Prepare data for all players and bulk insert them into `player` table
-    inserted_players = bulk_create_players(new_team_id, request.player_names)
+    inserted_players = await run_in_threadpool(bulk_create_players, new_team_id, request.player_names)
     if not inserted_players:
         raise HTTPException(status_code=500, detail="Failed to insert players into the team.")
         
@@ -86,7 +85,7 @@ async def toggle_team_ready(team_id: str, request: ToggleReadyRequest):
     """
     Toggles the ready status for a specific team.
     """
-    success = set_team_ready(team_id, request.is_ready)
+    success = await run_in_threadpool(set_team_ready, team_id, request.is_ready)
     if not success:
         raise HTTPException(status_code=404, detail="Team not found or could not update status.")
     return {"status": "success", "is_ready": request.is_ready}

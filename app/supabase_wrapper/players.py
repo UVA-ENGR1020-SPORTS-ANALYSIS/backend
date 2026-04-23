@@ -39,6 +39,19 @@ def update_player_in_db(player_id: str, player_name: str) -> Optional[dict]:
 
     return result.data[0]
 
+def calculate_player_stat_update(current_stats: dict, points: int, made: bool) -> dict:
+    total_points = int(current_stats.get("total_points") or 0) + points
+    total_makes = int(current_stats.get("total_makes") or 0) + (1 if made else 0)
+    total_attempts = int(current_stats.get("total_attempts") or 0) + 1
+    shooting_pct = round((total_makes / total_attempts) * 100, 2) if total_attempts else 0
+
+    return {
+        "total_points": total_points,
+        "total_makes": total_makes,
+        "total_attempts": total_attempts,
+        "shooting_pct": float(shooting_pct),
+    }
+
 def increment_player_stats(player_id: str, points: int, made: bool) -> bool:
     """
     Increments a player's cumulative stats after a shot.
@@ -53,18 +66,9 @@ def increment_player_stats(player_id: str, points: int, made: bool) -> bool:
         if not res.data:
             return False
 
-        cur = res.data
-        new_points   = cur["total_points"] + points
-        new_makes    = cur["total_makes"] + (1 if made else 0)
-        new_attempts = cur["total_attempts"] + 1
-        new_pct      = round((new_makes / new_attempts) * 100, 2) if new_attempts > 0 else 0
-
-        supabase.table("player").update({
-            "total_points":   new_points,
-            "total_makes":    new_makes,
-            "total_attempts": new_attempts,
-            "shooting_pct":   float(new_pct),
-        }).eq("player_id", player_id).execute()
+        supabase.table("player").update(
+            calculate_player_stat_update(res.data, points, made)
+        ).eq("player_id", player_id).execute()
 
         return True
     except Exception as e:

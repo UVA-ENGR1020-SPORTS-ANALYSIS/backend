@@ -1,10 +1,24 @@
 from unittest.mock import MagicMock, patch
-from app.supabase_wrapper.players import bulk_create_players
+from app.supabase_wrapper.players import bulk_create_players, calculate_player_stat_update
 
 # NOTE: The tests below are written to match the actual implementation in the repository
 # (which uses the table 'player' and keys 'player_team_id', 'player_name')
 # rather than the hypothetical code snippet in the issue description,
 # ensuring we test the production schema bindings accurately without regressions.
+
+def test_calculate_player_stat_update_for_make():
+    result = calculate_player_stat_update(
+        {"total_points": 4, "total_makes": 2, "total_attempts": 5},
+        points=3,
+        made=True,
+    )
+
+    assert result == {
+        "total_points": 7,
+        "total_makes": 3,
+        "total_attempts": 6,
+        "shooting_pct": 50.0,
+    }
 
 @patch("app.supabase_wrapper.players.get_client")
 def test_bulk_create_players_success(mock_get_client):

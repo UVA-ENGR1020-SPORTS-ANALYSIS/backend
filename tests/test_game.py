@@ -3,6 +3,7 @@ from unittest.mock import patch
 import pytest
 
 from app.main import app
+from app.models.schemas import ShotRecord
 
 client = TestClient(app)
 
@@ -17,8 +18,9 @@ def get_valid_payload():
         "shot_made": True
     }
 
+@patch('app.routes.game.increment_player_stats')
 @patch('app.routes.game.record_shot_in_db')
-def test_submit_shot_success_make(mock_record_shot):
+def test_submit_shot_success_make(mock_record_shot, mock_increment_player_stats):
     # Setup mock to return a valid UUID string
     mock_record_shot.return_value = "123e4567-e89b-12d3-a456-426614174004"
 
@@ -35,7 +37,7 @@ def test_submit_shot_success_make(mock_record_shot):
     assert data["points_awarded"] == 1
 
     # Verify the mock was called correctly
-    mock_record_shot.assert_called_once_with(
+    mock_record_shot.assert_called_once_with(ShotRecord(
         player_id=payload["player_id"],
         team_id=payload["team_id"],
         session_id=payload["session_id"],
@@ -45,10 +47,12 @@ def test_submit_shot_success_make(mock_record_shot):
         make_value=1,
         location_value=1,
         points=1
-    )
+    ))
+    mock_increment_player_stats.assert_called_once_with(payload["player_id"], 1, True)
 
+@patch('app.routes.game.increment_player_stats')
 @patch('app.routes.game.record_shot_in_db')
-def test_submit_shot_success_miss(mock_record_shot):
+def test_submit_shot_success_miss(mock_record_shot, mock_increment_player_stats):
     mock_record_shot.return_value = "123e4567-e89b-12d3-a456-426614174005"
 
     payload = get_valid_payload()
@@ -63,7 +67,7 @@ def test_submit_shot_success_miss(mock_record_shot):
     assert data["shot_id"] == "123e4567-e89b-12d3-a456-426614174005"
     assert data["points_awarded"] == 0
 
-    mock_record_shot.assert_called_once_with(
+    mock_record_shot.assert_called_once_with(ShotRecord(
         player_id=payload["player_id"],
         team_id=payload["team_id"],
         session_id=payload["session_id"],
@@ -73,10 +77,12 @@ def test_submit_shot_success_miss(mock_record_shot):
         make_value=0,
         location_value=2,
         points=0
-    )
+    ))
+    mock_increment_player_stats.assert_called_once_with(payload["player_id"], 0, False)
 
+@patch('app.routes.game.increment_player_stats')
 @patch('app.routes.game.record_shot_in_db')
-def test_submit_shot_different_zones(mock_record_shot):
+def test_submit_shot_different_zones(mock_record_shot, mock_increment_player_stats):
     mock_record_shot.return_value = "fake-id"
 
     # Test zone 3 (2 points)
@@ -94,6 +100,7 @@ def test_submit_shot_different_zones(mock_record_shot):
     response = client.post("/api/game/shot", json=payload_zone4)
     assert response.status_code == 200
     assert response.json()["points_awarded"] == 3
+    assert mock_increment_player_stats.call_count == 2
 
 
 

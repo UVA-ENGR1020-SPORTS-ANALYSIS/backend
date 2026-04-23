@@ -17,7 +17,7 @@ class JoinTeamRequest(BaseModel):
     """
     Sent by frontend to register a team into an existing session.
     """
-    player_names: List[str] = Field(..., min_length=1, max_length=4, description="Max 4 players per team")
+    player_names: List[str] = Field(..., max_length=4, description="Max 4 players per team")
     session_id: Optional[UUID] = None
     session_code: Optional[int] = None
     team_count: Optional[int] = Field(None, ge=1, le=4, description="The expected number of players/teams")
@@ -58,6 +58,17 @@ class SubmitShotRequest(BaseModel):
     round_number: int = Field(..., ge=1, le=2)
     zone: int = Field(..., ge=1, le=6)
     shot_made: bool
+
+class ShotRecord(BaseModel):
+    player_id: str
+    team_id: str
+    session_id: str
+    round_number: int
+    zone: int
+    is_make: bool
+    make_value: int
+    location_value: int
+    points: int
 
 class SubmitShotResponse(BaseModel):
     status: str

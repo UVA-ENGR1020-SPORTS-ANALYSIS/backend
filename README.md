@@ -12,6 +12,7 @@ uvicorn app.main:app --reload
 ```
 
 Create a `.env` file from `env.example` with your Supabase credentials.
+Set `ADMIN_API_KEY` and send it as `X-Admin-Key` for admin-only session and player mutation endpoints.
 
 ## Project Structure
 
@@ -50,9 +51,9 @@ app/
 | Method | Path | Description |
 |--------|------|-------------|
 | `POST` | `/` | Create a new game session (returns 6-digit code) |
-| `GET` | `/` | List all sessions |
+| `GET` | `/` | List sessions (admin-only, sanitized fields) |
 | `GET` | `/{session_code}` | Get session details with teams & players |
-| `DELETE` | `/{session_id}` | End a session (soft-delete, sets status to `ended`) |
+| `DELETE` | `/{session_id}` | End a session (admin-only soft-delete, sets status to `ended`) |
 
 ### Game — `/api/game`
 
@@ -71,7 +72,7 @@ app/
 | `GET` | `/team/{team_id}` | Get all players & stats for a team |
 | `GET` | `/{player_id}` | Get a single player's stats |
 | `POST` | `/` | Create a player |
-| `PUT` | `/{player_id}` | Update a player's name |
+| `PUT` | `/{player_id}` | Update a player's name (admin-only) |
 
 ## Database Schema (Supabase)
 

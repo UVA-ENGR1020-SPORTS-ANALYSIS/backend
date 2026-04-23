@@ -1,29 +1,25 @@
 from typing import Dict, Any, Optional
 from app.supabase_wrapper.client import get_client
+from app.models.schemas import ShotRecord
 
-def record_shot_in_db(
-    player_id: str, 
-    team_id: str, 
-    session_id: str,
-    round_number: int,
-    zone: int,
-    is_make: bool,
-    make_value: int,
-    location_value: int,
-    points: int
-) -> Optional[str]:
+SHOT_SELECT_COLUMNS = (
+    "shot_id,shot_player_id,team_id,session_id,round_number,"
+    "zone,shot_made,make_value,location_value,points"
+)
+
+def record_shot_in_db(shot: ShotRecord) -> Optional[str]:
     """Records a shot and returns the shot_id."""
     supabase = get_client()
     data = {
-        "shot_player_id": player_id,
-        "team_id": team_id,
-        "session_id": session_id,
-        "round_number": round_number,
-        "zone": zone,
-        "shot_made": is_make,
-        "make_value": make_value,
-        "location_value": location_value,
-        "points": points
+        "shot_player_id": shot.player_id,
+        "team_id": shot.team_id,
+        "session_id": shot.session_id,
+        "round_number": shot.round_number,
+        "zone": shot.zone,
+        "shot_made": shot.is_make,
+        "make_value": shot.make_value,
+        "location_value": shot.location_value,
+        "points": shot.points
     }
     try:
         res = supabase.table("shots").insert(data).execute()
@@ -44,17 +40,54 @@ def set_team_round_finished(team_id: str, round_number: int) -> bool:
         print(f"Error finishing round {round_number}:", e)
         return False
 
-def get_team_stats(team_id: str, round_number: int = 1) -> Dict[str, Any]:
+def get_team_stats(team_id: str, round_number: int = 1, include_shots: bool = False) -> Dict[str, Any]:
     """Gets total points and shots for a team in a specific round."""
     supabase = get_client()
     try:
-        res = supabase.table("shots").select("*").eq("team_id", team_id).eq("round_number", round_number).execute()
-        shots = res.data or []
-        points = sum(s.get("points", 0) for s in shots)
-        return {"shots": shots, "total_points": points}
+        stats_res = (
+            supabase.table("shots")
+            .select("total_points:points.sum(),shots_taken:shot_id.count()")
+            .eq("team_id", team_id)
+            .eq("round_number", round_number)
+            .execute()
+        )
+        row = stats_res.data[0] if stats_res.data else {}
+        points = row.get("total_points") or 0
+        shots_taken = row.get("shots_taken") or 0
+        shots = []
+
+        if include_shots:
+            shots_res = (
+                supabase.table("shots")
+                .select(SHOT_SELECT_COLUMNS)
+                .eq("team_id", team_id)
+                .eq("round_number", round_number)
+                .execute()
+            )
+            shots = shots_res.data or []
+            shots_taken = shots_taken or len(shots)
+
+        return {"shots": shots, "shots_taken": int(shots_taken), "total_points": int(points)}
     except Exception as e:
         print("Error getting team stats:", e)
-        return {"shots": [], "total_points": 0}
+        try:
+            fallback_columns = SHOT_SELECT_COLUMNS if include_shots else "points"
+            fallback_res = (
+                supabase.table("shots")
+                .select(fallback_columns)
+                .eq("team_id", team_id)
+                .eq("round_number", round_number)
+                .execute()
+            )
+            fallback_shots = fallback_res.data or []
+            return {
+                "shots": fallback_shots if include_shots else [],
+                "shots_taken": len(fallback_shots),
+                "total_points": sum(int(shot.get("points") or 0) for shot in fallback_shots),
+            }
+        except Exception as fallback_error:
+            print("Error getting fallback team stats:", fallback_error)
+        return {"shots": [], "shots_taken": 0, "total_points": 0}
 
 def ban_opponent_zone(opponent_team_id: str, zone: int) -> bool:
     """Sets the banned zone for an opponent."""
