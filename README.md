@@ -1,25 +1,79 @@
 # Backend — Tabletop Basketball
 
-FastAPI backend for the Tabletop Basketball app. Manages game sessions, teams, players, and shot tracking via Supabase (PostgreSQL).
+FastAPI backend for the Tabletop Basketball application. It manages game sessions, teams, players, and real-time shot tracking through Supabase (PostgreSQL).
 
-## Setup
+## 🚀 Tech Stack
+
+- **Framework:** FastAPI (Python)
+- **Database:** Supabase (PostgreSQL)
+- **Validation:** Pydantic
+- **Testing:** Pytest
+
+## 📦 Setup & Running Locally
+
+### 1. Virtual Environment
+
+Create and activate a virtual environment:
 
 ```bash
+# Create the virtual environment
 python -m venv .venv
+
+# Activate it (macOS/Linux)
 source .venv/bin/activate
+
+# Activate it (Windows)
+.venv\Scripts\activate
+```
+
+### 2. Install Dependencies
+
+```bash
 pip install -r requirements.txt
+```
+
+### 3. Environment Variables
+
+Create a `.env` file in the root of the `backend` directory based on the provided `env.example`:
+
+```bash
+cp env.example .env
+```
+
+Populate the `.env` file with your credentials:
+```ini
+SUPABASE_URL=https://your-project-id.supabase.co
+SUPABASE_KEY=your-anon-or-service-role-key
+WARMUP_KEY=any-random-secret-for-ping-checks
+ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
+```
+
+*Note: For admin-only session/player mutations, the server also expects an `ADMIN_API_KEY` in your environment, which must be sent as the `X-Admin-Key` header.*
+
+### 4. Run the Server
+
+Start the FastAPI backend with hot-reloading:
+
+```bash
 uvicorn app.main:app --reload
 ```
 
-Create a `.env` file from `env.example` with your Supabase credentials.
-Set `ADMIN_API_KEY` and send it as `X-Admin-Key` for admin-only session and player mutation endpoints.
+The API will be available at [http://localhost:8000](http://localhost:8000). You can view the interactive Swagger UI documentation at [http://localhost:8000/docs](http://localhost:8000/docs).
 
-## Project Structure
+## 🧪 Testing
+
+To run the unit and integration test suite, simply run:
+
+```bash
+pytest
+```
+
+## 📁 Project Structure
 
 ```
 app/
 ├── main.py                  # FastAPI app, CORS, router registration
-├── config.py                # Environment config (PORT, etc.)
+├── config.py                # Environment config loader
 ├── models/
 │   ├── player.py            # Player Pydantic model
 │   └── schemas.py           # Request/response schemas with validation
@@ -36,62 +90,20 @@ app/
     └── shots.py              # Shot recording & team stats
 ```
 
-## API Endpoints
+## 🌐 API Overview
 
-### Connect — `/api/connect`
+- **Connect (`/api/connect`)**: Lobby creation and team readiness flow.
+- **Sessions (`/api/sessions`)**: Admin tools to list, view, and soft-delete game sessions.
+- **Game (`/api/game`)**: Core loop—submitting shots, finishing rounds, polling opponent status, and banning zones.
+- **Players (`/api/players`)**: View and manage individual player statistics.
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/{session_code}` | Validate a room code exists and has space |
-| `POST` | `/` | Join a session as a team (bulk-creates players) |
-| `POST` | `/{team_id}/ready` | Toggle a team's ready status |
+## 🗄️ Database Schema
 
-### Sessions — `/api/sessions`
+| Table | Purpose |
+|-------|---------|
+| `sessions` | Tracks active, waiting, and ended game sessions. |
+| `teams` | Tracks readiness, round progress, and banned zones for the opponent. |
+| `player` | Stores player identity and aggregate shooting statistics. |
+| `shots` | The primary append-only log of every shot taken in the game. |
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/` | Create a new game session (returns 6-digit code) |
-| `GET` | `/` | List sessions (admin-only, sanitized fields) |
-| `GET` | `/{session_code}` | Get session details with teams & players |
-| `DELETE` | `/{session_id}` | End a session (admin-only soft-delete, sets status to `ended`) |
-
-### Game — `/api/game`
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/shot` | Record a shot (updates player & team stats) |
-| `POST` | `/finish_round` | Mark a team as done with round 1 or 2 |
-| `GET` | `/team_stats/{team_id}/{round_number}` | Get a team's shots & points for a round |
-| `GET` | `/opponent_stats/{session_id}/{my_team_id}` | Poll opponent's round 1 completion & stats |
-| `POST` | `/ban` | Ban a zone for the opponent in round 2 |
-
-### Players — `/api/players`
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/team/{team_id}` | Get all players & stats for a team |
-| `GET` | `/{player_id}` | Get a single player's stats |
-| `POST` | `/` | Create a player |
-| `PUT` | `/{player_id}` | Update a player's name (admin-only) |
-
-## Database Schema (Supabase)
-
-| Table | Key Columns |
-|-------|-------------|
-| `sessions` | `session_id`, `session_code`, `status`, `target_team` |
-| `teams` | `team_id`, `current_session`, `is_ready`, `round_1_finished`, `round_2_finished`, `banned_zone` |
-| `player` | `player_id`, `player_team_id`, `player_name`, `total_points`, `total_makes`, `total_attempts`, `shooting_pct` |
-| `shots` | `shot_id`, `shot_player_id`, `team_id`, `session_id`, `zone`, `shot_made`, `round_number`, `points` |
-
-RLS is enabled on all tables.
-
-## Game Flow
-
-1. **Create** → Host creates a session, gets a 6-digit code
-2. **Join** → Teams join via code, register player names
-3. **Lobby** → Teams toggle ready; game starts when all ready
-4. **Round 1** → Each player takes 5 shots across 6 zones
-5. **Results** → View per-player stats & zone heatmap
-6. **Ban Phase** → (Multi-team) Ban one of opponent's zones
-7. **Round 2** → Shoot again, banned zone is blocked
-8. **Final** → Compare round 2 scores, declare winner
+RLS (Row Level Security) is enabled on all tables via Supabase.
