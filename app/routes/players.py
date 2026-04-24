@@ -6,6 +6,7 @@ from app.supabase_wrapper.players import (
     update_player_in_db,
     get_player_stats_from_db,
     get_players_by_team,
+    create_player_in_db,
 )
 
 router = APIRouter(prefix="/api/players", tags=["players"])
@@ -25,11 +26,14 @@ async def get_player_stats(player_id: str):
     return stats
 
 @router.post("")
-async def create_player(player: Player):
-    # TODO: Save player to DB
+async def create_player(player: Player, _: None = Depends(require_admin_key)):
+    player_data = player.model_dump()
+    created = await run_in_threadpool(create_player_in_db, player_data)
+    if created is None:
+        raise HTTPException(status_code=400, detail="Failed to create player")
     return {
         "status": "created",
-        "player": player
+        "player": created
     }
 
 @router.put("/{player_id}")

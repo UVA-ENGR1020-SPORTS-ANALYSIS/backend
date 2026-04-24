@@ -20,6 +20,20 @@ def bulk_create_players(team_id: str, player_names: list[str]) -> Optional[list[
         
     return players_insert.data
 
+def create_player_in_db(player_data: dict) -> Optional[dict]:
+    """
+    Inserts a single player into the player table.
+    Returns the inserted row.
+    """
+    supabase = get_client()
+    
+    result = supabase.table("player").insert(player_data).execute()
+    
+    if not result.data:
+        return None
+        
+    return result.data[0]
+
 def update_player_in_db(player_id: str, player_name: str) -> Optional[dict]:
     """
     Updates a player's name by player_id.
