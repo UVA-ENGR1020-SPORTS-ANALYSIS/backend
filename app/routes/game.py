@@ -12,9 +12,11 @@ from app.supabase_wrapper.shots import (
     record_shot_in_db,
     set_team_round_finished,
     get_team_stats,
-    ban_opponent_zone
+    ban_opponent_zone,
+    delete_shot_from_db,
+    delete_round_shots,
 )
-from app.supabase_wrapper.players import increment_player_stats
+from app.supabase_wrapper.players import increment_player_stats, recompute_player_stats_from_shots
 
 router = APIRouter(prefix="/api/game", tags=["game"])
 
@@ -64,6 +66,24 @@ async def submit_shot(shot: SubmitShotRequest):
         shot_id=shot_id,
         points_awarded=points
     )
+
+@router.delete("/shot/{shot_id}")
+async def delete_shot(shot_id: str):
+    shot = await run_in_threadpool(delete_shot_from_db, shot_id)
+    if not shot:
+        raise HTTPException(status_code=404, detail="Shot not found.")
+    player_id = shot.get("shot_player_id")
+    if player_id:
+        await run_in_threadpool(recompute_player_stats_from_shots, player_id)
+    return {"status": "success", "shot_id": shot_id}
+
+@router.delete("/shots/{team_id}/{session_id}/{round_number}")
+async def delete_round(team_id: str, session_id: str, round_number: int):
+    deleted = await run_in_threadpool(delete_round_shots, team_id, session_id, round_number)
+    player_ids = list({s["shot_player_id"] for s in deleted if s.get("shot_player_id")})
+    for pid in player_ids:
+        await run_in_threadpool(recompute_player_stats_from_shots, pid)
+    return {"status": "success", "deleted": len(deleted)}
 
 @router.post("/finish_round")
 async def finish_round(req: FinishRoundRequest):

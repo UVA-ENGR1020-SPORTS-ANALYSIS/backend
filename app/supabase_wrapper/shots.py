@@ -96,6 +96,34 @@ def get_team_stats(team_id: str, round_number: Optional[int] = 1, include_shots:
             print("Error getting fallback team stats:", fallback_error)
         return {"shots": [], "shots_taken": 0, "total_points": 0}
 
+def delete_shot_from_db(shot_id: str) -> dict | None:
+    """Deletes a single shot by ID. Returns the deleted row or None."""
+    supabase = get_client()
+    try:
+        res = supabase.table("shots").delete().eq("shot_id", shot_id).execute()
+        if res.data:
+            return res.data[0]
+    except Exception as e:
+        print("Error deleting shot:", e)
+    return None
+
+def delete_round_shots(team_id: str, session_id: str, round_number: int) -> list[dict]:
+    """Deletes all shots for a team/session/round. Returns the deleted rows."""
+    supabase = get_client()
+    try:
+        res = (
+            supabase.table("shots")
+            .delete()
+            .eq("team_id", team_id)
+            .eq("session_id", session_id)
+            .eq("round_number", round_number)
+            .execute()
+        )
+        return res.data or []
+    except Exception as e:
+        print("Error deleting round shots:", e)
+    return []
+
 def ban_opponent_zone(opponent_team_id: str, zone: int) -> bool:
     """Sets the banned zone for an opponent."""
     supabase = get_client()

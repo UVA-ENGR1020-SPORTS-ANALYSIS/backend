@@ -89,6 +89,27 @@ def increment_player_stats(player_id: str, points: int, made: bool) -> bool:
         print("Error incrementing player stats:", e)
         return False
 
+def recompute_player_stats_from_shots(player_id: str) -> bool:
+    """Recomputes a player's stats from scratch using all remaining shots in the DB."""
+    supabase = get_client()
+    try:
+        res = supabase.table("shots").select("points,shot_made").eq("shot_player_id", player_id).execute()
+        shots = res.data or []
+        total_attempts = len(shots)
+        total_makes = sum(1 for s in shots if s["shot_made"])
+        total_points = sum(int(s.get("points") or 0) for s in shots)
+        shooting_pct = round((total_makes / total_attempts) * 100, 2) if total_attempts else 0.0
+        supabase.table("player").update({
+            "total_attempts": total_attempts,
+            "total_makes": total_makes,
+            "total_points": total_points,
+            "shooting_pct": float(shooting_pct),
+        }).eq("player_id", player_id).execute()
+        return True
+    except Exception as e:
+        print("Error recomputing player stats:", e)
+        return False
+
 def get_player_stats_from_db(player_id: str) -> Optional[dict]:
     """Fetches a single player's full record."""
     supabase = get_client()
