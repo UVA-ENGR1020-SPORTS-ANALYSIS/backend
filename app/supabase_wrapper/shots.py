@@ -40,30 +40,36 @@ def set_team_round_finished(team_id: str, round_number: int) -> bool:
         print(f"Error finishing round {round_number}:", e)
         return False
 
-def get_team_stats(team_id: str, round_number: int = 1, include_shots: bool = False) -> Dict[str, Any]:
-    """Gets total points and shots for a team in a specific round."""
+def get_team_stats(team_id: str, round_number: Optional[int] = 1, include_shots: bool = False) -> Dict[str, Any]:
+    """Gets total points and shots for a team.
+
+    If round_number is None, aggregates across ALL rounds for the team.
+    Otherwise filters to the given round.
+    """
     supabase = get_client()
     try:
-        stats_res = (
+        stats_query = (
             supabase.table("shots")
             .select("total_points:points.sum(),shots_taken:shot_id.count()")
             .eq("team_id", team_id)
-            .eq("round_number", round_number)
-            .execute()
         )
+        if round_number is not None:
+            stats_query = stats_query.eq("round_number", round_number)
+        stats_res = stats_query.execute()
         row = stats_res.data[0] if stats_res.data else {}
         points = row.get("total_points") or 0
         shots_taken = row.get("shots_taken") or 0
         shots = []
 
         if include_shots:
-            shots_res = (
+            shots_query = (
                 supabase.table("shots")
                 .select(SHOT_SELECT_COLUMNS)
                 .eq("team_id", team_id)
-                .eq("round_number", round_number)
-                .execute()
             )
+            if round_number is not None:
+                shots_query = shots_query.eq("round_number", round_number)
+            shots_res = shots_query.execute()
             shots = shots_res.data or []
             shots_taken = shots_taken or len(shots)
 
@@ -72,13 +78,14 @@ def get_team_stats(team_id: str, round_number: int = 1, include_shots: bool = Fa
         print("Error getting team stats:", e)
         try:
             fallback_columns = SHOT_SELECT_COLUMNS if include_shots else "points"
-            fallback_res = (
+            fallback_query = (
                 supabase.table("shots")
                 .select(fallback_columns)
                 .eq("team_id", team_id)
-                .eq("round_number", round_number)
-                .execute()
             )
+            if round_number is not None:
+                fallback_query = fallback_query.eq("round_number", round_number)
+            fallback_res = fallback_query.execute()
             fallback_shots = fallback_res.data or []
             return {
                 "shots": fallback_shots if include_shots else [],
