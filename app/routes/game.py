@@ -83,6 +83,45 @@ async def fetch_team_stats(team_id: str, round_number: int):
         "raw_shots": stats["shots"]
     }
 
+@router.get("/team_stats_total/{team_id}")
+async def fetch_team_stats_total(team_id: str):
+    """Cumulative stats for a team across all rounds."""
+    stats = await run_in_threadpool(get_team_stats, team_id, None, True)
+    return {
+        "team_id": team_id,
+        "shots_taken": stats["shots_taken"],
+        "points": stats["total_points"],
+        "raw_shots": stats["shots"]
+    }
+
+@router.get("/final_results/{session_id}")
+async def fetch_final_results(session_id: str):
+    """Leaderboard for the session: every team's cumulative stats across all rounds.
+
+    Works for 1, 2, and 4-team modes. Teams are returned sorted by points descending.
+    """
+    try:
+        teams = await run_in_threadpool(get_teams_for_session, session_id)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to fetch teams.")
+
+    if not teams:
+        return {"session_id": session_id, "teams": []}
+
+    results = []
+    for team in teams:
+        team_id = team["team_id"]
+        stats = await run_in_threadpool(get_team_stats, team_id, None, True)
+        results.append({
+            "team_id": team_id,
+            "shots_taken": stats["shots_taken"],
+            "points": stats["total_points"],
+            "raw_shots": stats["shots"],
+        })
+
+    results.sort(key=lambda r: r["points"], reverse=True)
+    return {"session_id": session_id, "teams": results}
+
 @router.get("/opponent_stats/{session_id}/{my_team_id}")
 async def get_opponent_stats(session_id: str, my_team_id: str):
     # Fetch all teams in the session
