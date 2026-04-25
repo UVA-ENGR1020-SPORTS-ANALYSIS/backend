@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import APIRouter, HTTPException
 from starlette.concurrency import run_in_threadpool
 from app.supabase_wrapper.client import get_client
@@ -98,10 +100,12 @@ async def finish_round(req: FinishRoundRequest):
     try:
         from app.supabase_wrapper.players import get_players_by_team
         team_players = await run_in_threadpool(get_players_by_team, str(req.team_id))
-        for p in team_players:
-            pid = p.get("player_id")
-            if pid:
-                await run_in_threadpool(recompute_player_stats_from_shots, pid)
+        player_ids = [p["player_id"] for p in team_players if p.get("player_id")]
+        if player_ids:
+            await asyncio.gather(*[
+                run_in_threadpool(recompute_player_stats_from_shots, pid)
+                for pid in player_ids
+            ])
     except Exception as e:
         # Don't fail the whole request — recompute is a self-heal step.
         print("Warning: post-finish recompute failed:", e)
@@ -144,10 +148,16 @@ async def fetch_final_results(session_id: str):
     if not teams:
         return {"session_id": session_id, "teams": []}
 
+    # Fan out the per-team stat queries in parallel — sequential awaits here
+    # were a hot spot on multi-team sessions (8+ DB roundtrips for 4 teams).
+    stats_list = await asyncio.gather(*[
+        run_in_threadpool(get_team_stats, team["team_id"], None, True)
+        for team in teams
+    ])
+
     results = []
-    for team in teams:
+    for team, stats in zip(teams, stats_list):
         team_id = team["team_id"]
-        stats = await run_in_threadpool(get_team_stats, team_id, None, True)
         results.append({
             "team_id": team_id,
             "shots_taken": stats["shots_taken"],
