@@ -23,9 +23,20 @@ from app.supabase_wrapper.players import increment_player_stats, recompute_playe
 router = APIRouter(prefix="/api/game", tags=["game"])
 
 def get_teams_for_session(session_id: str) -> list[dict]:
+    """Reads are safe to retry — no duplicate risk like inserts have."""
+    import time
     supabase = get_client()
-    res = supabase.table("teams").select("*").eq("current_session", session_id).execute()
-    return res.data or []
+    last_err = None
+    for attempt in range(3):
+        try:
+            res = supabase.table("teams").select("*").eq("current_session", session_id).execute()
+            return res.data or []
+        except Exception as e:
+            last_err = e
+            print(f"get_teams_for_session attempt {attempt + 1} failed:", e)
+            if attempt < 2:
+                time.sleep(0.3 * (attempt + 1))
+    raise last_err if last_err else RuntimeError("get_teams_for_session: unknown error")
 
 def get_location_value(zone: int) -> int:
     """Helper to determine points based on zone/location."""
