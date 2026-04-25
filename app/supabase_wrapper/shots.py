@@ -71,7 +71,11 @@ def get_team_stats(team_id: str, round_number: Optional[int] = 1, include_shots:
                 shots_query = shots_query.eq("round_number", round_number)
             shots_res = shots_query.execute()
             shots = shots_res.data or []
-            shots_taken = shots_taken or len(shots)
+            # Trust the raw shot list over the PostgREST aggregate. The
+            # aggregate has been observed returning 0 even when rows exist,
+            # which surfaced on the final-results page as a 0-0 draw.
+            shots_taken = len(shots)
+            points = sum(int(s.get("points") or 0) for s in shots)
 
         return {"shots": shots, "shots_taken": int(shots_taken), "total_points": int(points)}
     except Exception as e:
