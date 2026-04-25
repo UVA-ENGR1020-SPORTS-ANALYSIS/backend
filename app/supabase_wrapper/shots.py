@@ -10,10 +10,10 @@ SHOT_SELECT_COLUMNS = (
 def record_shot_in_db(shot: ShotRecord) -> Optional[str]:
     """Records a shot and returns the shot_id.
 
-    Retries up to 3 times on transient failures (Supabase free tier
-    occasionally returns 500s under concurrent insert load).
+    NO retry: an HTTP timeout from Supabase doesn't reliably mean the
+    insert failed — the row may already be in the DB. Retrying then
+    creates duplicates ("5 shots tallied -> 7 shots in DB" bug).
     """
-    import time
     supabase = get_client()
     data = {
         "shot_player_id": shot.player_id,
@@ -26,22 +26,12 @@ def record_shot_in_db(shot: ShotRecord) -> Optional[str]:
         "location_value": shot.location_value,
         "points": shot.points
     }
-
-    last_err: Optional[Exception] = None
-    for attempt in range(3):
-        try:
-            res = supabase.table("shots").insert(data).execute()
-            if res.data:
-                return res.data[0]["shot_id"]
-            # No exception but no data — treat as transient and retry.
-            last_err = Exception("insert returned no data")
-        except Exception as e:
-            last_err = e
-            print(f"Error recording shot (attempt {attempt + 1}):", e)
-        if attempt < 2:
-            time.sleep(0.2 * (attempt + 1))
-
-    print("Giving up on shot insert after 3 attempts:", last_err)
+    try:
+        res = supabase.table("shots").insert(data).execute()
+        if res.data:
+            return res.data[0]["shot_id"]
+    except Exception as e:
+        print("Error recording shot:", e)
     return None
 
 def set_team_round_finished(team_id: str, round_number: int) -> bool:
