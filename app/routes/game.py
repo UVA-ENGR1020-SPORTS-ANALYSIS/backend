@@ -90,6 +90,22 @@ async def finish_round(req: FinishRoundRequest):
     success = await run_in_threadpool(set_team_round_finished, str(req.team_id), req.round_number)
     if not success:
         raise HTTPException(status_code=500, detail="Failed to update round status.")
+
+    # Defensive recompute: parallel /shot submits can race the read-modify-write
+    # in increment_player_stats and lose increments. After the round is finished,
+    # rebuild every team player's cumulative stats from the shots table so the
+    # player table is authoritative again.
+    try:
+        from app.supabase_wrapper.players import get_players_by_team
+        team_players = await run_in_threadpool(get_players_by_team, str(req.team_id))
+        for p in team_players:
+            pid = p.get("player_id")
+            if pid:
+                await run_in_threadpool(recompute_player_stats_from_shots, pid)
+    except Exception as e:
+        # Don't fail the whole request — recompute is a self-heal step.
+        print("Warning: post-finish recompute failed:", e)
+
     return {"status": "success", "message": f"Round {req.round_number} finished."}
 
 @router.get("/team_stats/{team_id}/{round_number}")
